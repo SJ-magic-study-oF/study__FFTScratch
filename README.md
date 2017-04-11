@@ -10,6 +10,7 @@ ofxGui
 ofxXmlSettings  
 
 ##Contents
+
 see also fft scratch on terminal.  
 https://github.com/SJ-magic-study/study__fft_scratch  
   
