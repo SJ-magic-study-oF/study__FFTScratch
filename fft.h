@@ -11,63 +11,72 @@ How to use
 		上の工程は、BarHeight内を、ほぼ100%効率良く使用するための設定で、こちらは実際の表示高さ。
 	
 note on Gui Parameters
-	ofxIntSlider ofs_x, ofs_y;
-		表示位置
+	全体
+		ofxToggle b_DispGain;
+			時間空間でなく、周波数空間にてGain表示.
 		
-	ofxToggle b_GainAdjust;
-		Audio I/F, AudioSample_Amp調整時にBarHeightで規定されるSquareを表示する。
-		
-	ofxFloatSlider AudioSample_Amp;
-		Line input volumeが-1〜1の間で、どの辺りで動作しているかを設定するのに使用。
-		Audio I/Fと合わせて設定。
-		Graph Heightが上記Square内に、ほぼ100%となるように設定すればOK.
+		ofxIntSlider ofs_x, ofs_y;
+			表示位置
+			
+		ofxToggle b_GainAdjust;
+			Audio I/F, AudioSample_Amp調整時にBarHeightで規定されるSquareを表示する。
+			
+		ofxFloatSlider AudioSample_Amp;
+			Line input volumeが-1〜1の間で、どの辺りで動作しているかを設定するのに使用。
+			Audio I/Fと合わせて設定。
+			Graph Heightが上記Square内に、ほぼ100%となるように設定すればOK.
 	
-	ofxToggle b_LineGraph;
-		GraphをLineで表示
+	ofxGuiGroup GuiGroup_GraphDispSetting;
+		ofxToggle b_LineGraph;
+			GraphをLineで表示
+			
+		ofxIntSlider BarHeight, BarWidth, BarSpace;
+			Graph size.
 		
-	ofxIntSlider BarHeight, BarWidth, BarSpace;
-		Graph size.
-	
-	ofxToggle b_abs;
-		Graphを±で表示するか、上半分に折り返して表示するか。
+		ofxToggle b_abs;
+			Graphを±で表示するか、上半分に折り返して表示するか。
+			
+		ofxToggle b_AlphaBlend_Add;
+			Graphのoverlay方法。
+			OF_BLENDMODE_ADD or OF_BLENDMODE_ALPHA 
 		
-	ofxToggle b_AlphaBlend_Add;
-		Graphのoverlay方法。
-		OF_BLENDMODE_ADD or OF_BLENDMODE_ALPHA 
-	
-	ofxIntSlider CutOff_From, CutOff_To;
-		fft結果の内、from <= [i] <= to の成分を残し、他をzero clearする。
-		[i]について、
-		44.1kHz, 512 sampleの場合、512sampleは、11.6ms.
-		x[1], y[1]は、1/11.6ms = 86Hzの成分。
-		x[2], y[2]は、86 x 2 Hzの成分。
+	ofxGuiGroup GuiGroup_FilterSetting;
+		ofxIntSlider CutOff_From, CutOff_To;
+			fft結果の内、from <= [i] <= to の成分を残し、他をzero clearする。
+			[i]について、
+			44.1kHz, 512 sampleの場合、512sampleは、11.6ms.
+			x[1], y[1]は、1/11.6ms = 86Hzの成分。
+			x[2], y[2]は、86 x 2 Hzの成分。
+			
+		ofxFloatSlider k_Smoothing;
+			fftで周波数軸に写影した後、Filteringを施してから再び時間軸に逆変換で戻す。
+			これに掛けるLPFの係数。
+			
+		ofxFloatSlider NonLinear_Range;
+			同じくNonLinear Filterに使用。
+			zeroの時、NonLinear Filterなし。
+			
+		ofxFloatSlider k_Smoothing_Gain;
+			周波数空間上でのGain用LPF係数.
 		
-	ofxFloatSlider k_Smoothing;
-		fftで周波数軸に写影した後、Filteringを施してから再び時間軸に逆変換で戻す。
-		これに掛けるLPFの係数。
+		ofxToggle b_phaseRotation;
+		ofxFloatSlider phase_deg;
+		ofxFloatSlider phaseRotaion_Speed;
+			fftで周波数軸に写影した後、Filteringを施してから再び時間軸に逆変換で戻す。
+			ここで、Filteringを施す時、phaseを揃えることで、時間軸に戻した後のGraphを整えている。
+			phaseが固定値だと、動きが少なくなるので、
+				b_phaseRotation = on
+			の時、phaseを回すことにした。
 		
-	ofxFloatSlider NonLinear_Range;
-		同じくNonLinear Filterに使用。
-		zeroの時、NonLinear Filterなし。
+		ofxFloatSlider PhaseNoise_Amp;
+		ofxFloatSlider PhaseNoise_Speed_sec;
+			b_phaseRotation = onの時、phaseを揃えつつも、回転させていくが、やはり綺麗に回転していくだけだと、退屈感が出てします。
+			そこでperlin noiseを使い、phaseを各瞬間で揺らすこととした。
+			これらは、そのためのparameter.
+			
+			PhaseNoise_Speed_secは、この時間ごとにnoise Level = 0となる値。つまりnoise周期と考えることができる。
+			大きくすると、noise変化が時間方向に緩やかになる。
 		
-	ofxToggle b_phaseRotation;
-	ofxFloatSlider phase_deg;
-	ofxFloatSlider phaseRotaion_Speed;
-		fftで周波数軸に写影した後、Filteringを施してから再び時間軸に逆変換で戻す。
-		ここで、Filteringを施す時、phaseを揃えることで、時間軸に戻した後のGraphを整えている。
-		phaseが固定値だと、動きが少なくなるので、
-			b_phaseRotation = on
-		の時、phaseを回すことにした。
-	
-	ofxFloatSlider PhaseNoise_Amp;
-	ofxFloatSlider PhaseNoise_Speed_sec;
-		b_phaseRotation = onの時、phaseを揃えつつも、回転させていくが、やはり綺麗に回転していくだけだと、退屈感が出てします。
-		そこでperlin noiseを使い、phaseを各瞬間で揺らすこととした。
-		これらは、そのためのparameter.
-		
-		PhaseNoise_Speed_secは、この時間ごとにnoise Level = 0となる値。つまりnoise周期と考えることができる。
-		大きくすると、noise変化が時間方向に緩やかになる。
-	
 	ofxColorSlider BarColor;
 		Graph color.
 ************************************************************/
@@ -110,6 +119,9 @@ private:
 	ofxPanel gui;
 	
 	/* */
+	ofxToggle b_DispGain;
+	
+	/* */
 	ofxIntSlider ofs_x;
 	ofxIntSlider ofs_y;
 	ofxToggle b_GainAdjust;
@@ -131,6 +143,7 @@ private:
 	ofxIntSlider CutOff_To;
 	ofxFloatSlider k_Smoothing;
 	ofxFloatSlider NonLinear_Range;
+	ofxFloatSlider k_Smoothing_Gain;
 	
 	ofxToggle b_phaseRotation;
 	ofxFloatSlider phase_deg;
@@ -152,6 +165,8 @@ private:
 	vector<ofVec3f> VboVerts;
 	vector<ofFloatColor> VboColor;
 	
+	vector<float> fft_Gain;
+	vector<float> Last_fft_Gain;
 	vector<float> AudioSample_Rev;
 	vector<float> fft_window;
 	
@@ -189,5 +204,7 @@ public:
 	void threadedFunction();
 	
 	void Toggle_DispGui();
+	void save_GuiSetting();
+	void load_GuiSetting();
 };
 

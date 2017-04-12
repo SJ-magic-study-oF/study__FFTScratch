@@ -34,8 +34,12 @@ FFT::FFT()
 	VboVerts.resize(N * 4); // square
 	VboColor.resize(N * 4); // square
 	
+	fft_Gain.resize(N);
+	Last_fft_Gain.resize(N);
+
 	AudioSample_Rev.resize(N);
 	
+	/* 窓関数 */
 	fft_window.resize(N);
 	for(int i = 0; i < N; i++)	fft_window[i] = 0.5 - 0.5 * cos(2 * PI * i / N);
 	
@@ -75,10 +79,13 @@ void FFT::setup()
 	gui.setup();
 	
 	/* */
+	gui.add(b_DispGain.setup("b_DispGain", false));
+
+	/* */
 	gui.add(ofs_x.setup("ofs_x", 115, -500, 500));
 	gui.add(ofs_y.setup("ofs_y", 450, 0, HEIGHT));
 	gui.add(b_GainAdjust.setup("b_GainAdjust", false));
-	gui.add(AudioSample_Amp.setup("AudioSample_Amp", 0.1, 0, 1));
+	gui.add(AudioSample_Amp.setup("AudioSample_Amp", 0.1, 0, 0.2));
 	
 	/* */
 	GuiGroup_GraphDispSetting.setup("GraphDisp");
@@ -99,8 +106,9 @@ void FFT::setup()
 	
 	GuiGroup_FilterSetting.add(CutOff_From.setup("CutOff_From", 1, 1, N/2 - 1));
 	GuiGroup_FilterSetting.add(CutOff_To.setup("CutOff_To", 20, 1, N/2 - 1));
-	GuiGroup_FilterSetting.add(k_Smoothing.setup("k_Smoothing", 0.065, 0.02, 0.1));
+	GuiGroup_FilterSetting.add(k_Smoothing.setup("k_LPF", 0.065, 0.02, 0.1));
 	GuiGroup_FilterSetting.add(NonLinear_Range.setup("NonLinear_Range", 0, 0, 0.1));
+	GuiGroup_FilterSetting.add(k_Smoothing_Gain.setup("k_LPF_Gain", 0.065, 0.02, 0.1));
 	
 	GuiGroup_FilterSetting.add(b_phaseRotation.setup("b_phaseRotation", true));
 	GuiGroup_FilterSetting.add(phase_deg.setup("phase_deg", 270, 0, 360));
@@ -120,6 +128,8 @@ void FFT::setup()
 
 	/********************
 	********************/
+	for(int i = 0; i < fft_Gain.size(); i++)			fft_Gain[i] = 0;
+	for(int i = 0; i < Last_fft_Gain.size(); i++)		Last_fft_Gain[i] = 0;
 	for(int i = 0; i < AudioSample_Rev.size(); i++)		AudioSample_Rev[i] = 0;
 	
 	RefreshVerts();
@@ -135,32 +145,41 @@ void FFT::setup()
 ******************************/
 void FFT::RefreshVerts()
 {
-	if(b_LineGraph){
+	if(b_DispGain){
 		for(int i = 0; i < N; i++){
 			VboVerts[i * 4 + 0].set( (BarWidth + BarSpace) * i           , 0 );
-			VboVerts[i * 4 + 1].set( (BarWidth + BarSpace) * i + BarWidth, 0 );
-			
-			if(b_abs){
-				VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i           , abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
-				VboVerts[i * 4 + 3].set( (BarWidth + BarSpace) * i + BarWidth, abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
-			}else{
-				VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i           , ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
-				VboVerts[i * 4 + 3].set( (BarWidth + BarSpace) * i + BarWidth, ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
-			}
+			VboVerts[i * 4 + 1].set( (BarWidth + BarSpace) * i           , ofMap(fft_Gain[i], 0, AudioSample_Amp, 0, BarHeight) );
+			VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i + BarWidth, ofMap(fft_Gain[i], 0, AudioSample_Amp, 0, BarHeight) );
+			VboVerts[i * 4 + 3].set( (BarWidth + BarSpace) * i + BarWidth, 0 );
 		}
 	}else{
-		for(int i = 0; i < N; i++){
-			VboVerts[i * 4 + 0].set( (BarWidth + BarSpace) * i           , 0 );
-			
-			if(b_abs){
-				VboVerts[i * 4 + 1].set( (BarWidth + BarSpace) * i           , abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
-				VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i + BarWidth, abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
-			}else{
-				VboVerts[i * 4 + 1].set( (BarWidth + BarSpace) * i           , ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
-				VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i + BarWidth, ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+		if(b_LineGraph){
+			for(int i = 0; i < N; i++){
+				VboVerts[i * 4 + 0].set( (BarWidth + BarSpace) * i           , 0 );
+				VboVerts[i * 4 + 1].set( (BarWidth + BarSpace) * i + BarWidth, 0 );
+				
+				if(b_abs){
+					VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i           , abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+					VboVerts[i * 4 + 3].set( (BarWidth + BarSpace) * i + BarWidth, abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+				}else{
+					VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i           , ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+					VboVerts[i * 4 + 3].set( (BarWidth + BarSpace) * i + BarWidth, ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+				}
 			}
-			
-			VboVerts[i * 4 + 3].set( (BarWidth + BarSpace) * i + BarWidth, 0 );
+		}else{
+			for(int i = 0; i < N; i++){
+				VboVerts[i * 4 + 0].set( (BarWidth + BarSpace) * i           , 0 );
+				
+				if(b_abs){
+					VboVerts[i * 4 + 1].set( (BarWidth + BarSpace) * i           , abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+					VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i + BarWidth, abs( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+				}else{
+					VboVerts[i * 4 + 1].set( (BarWidth + BarSpace) * i           , ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+					VboVerts[i * 4 + 2].set( (BarWidth + BarSpace) * i + BarWidth, ( ofMap(AudioSample_Rev[i], -AudioSample_Amp, AudioSample_Amp, -BarHeight, BarHeight)) );
+				}
+				
+				VboVerts[i * 4 + 3].set( (BarWidth + BarSpace) * i + BarWidth, 0 );
+			}
 		}
 	}
 }
@@ -258,11 +277,11 @@ void FFT::update_fftGain(const vector<float> &AudioSample)
 	x[0] = 0; y[0] = 0;
 	x[N/2] = 0; y[N/2] = 0;
 	for(int i = 1; i < N/2; i++){
+		fft_Gain[i] = sqrt(x[i] * x[i] + y[i] * y[i]);
+		
 		if( (_CutOff_From <= i) && (i <= _CutOff_To) ){
-			double Gain = sqrt(x[i] * x[i] + y[i] * y[i]);
-			
-			x[i] = Gain * cos( deg2rad(phase_deg + phase_Noise) );
-			y[i] = Gain * sin( deg2rad(phase_deg + phase_Noise) );
+			x[i] = fft_Gain[i] * cos( deg2rad(phase_deg + phase_Noise) );
+			y[i] = fft_Gain[i] * sin( deg2rad(phase_deg + phase_Noise) );
 			
 			/********************
 			共役
@@ -276,11 +295,18 @@ void FFT::update_fftGain(const vector<float> &AudioSample)
 		}
 	}
 	
-	fft(x, y, true);
+	fft(x, y, true); // reverse to time.
 	
 	
 	/********************
 	********************/
+	/* Gain of Freq */
+	for(int i = 0; i < fft_Gain.size(); i++){
+		fft_Gain[i] = (1 - k_Smoothing_Gain) * Last_fft_Gain[i] + k_Smoothing_Gain * fft_Gain[i];
+		Last_fft_Gain[i] = fft_Gain[i];
+	}
+	
+	/* TimeBased */
 	for(int i = 0; i < AudioSample_Rev.size(); i++){
 		float _AudioSample_Rev;
 		
@@ -309,13 +335,41 @@ void FFT::update_fftGain(const vector<float> &AudioSample)
 	********************/
 	LastInt = now;
 	
-	/********************
-	********************/
 #ifdef SJ_DEBUG__MEASTIME
 	fprintf(fp_Log, "%f\n", ofGetElapsedTimef());
 #endif
 }
 
+/******************************
+description
+	lock()/unlock()
+	処理が止まってしまうので、Dialogでなく、File名固定にしようかと思ったが、
+	実験の結果、Processの前後で問題なく動作したので、Dialogにしておく.
+******************************/
+void FFT::save_GuiSetting()
+{
+	/*
+	gui.saveToFile("Gui.xml");
+	printf("save:Gui setting\n");
+	*/
+	
+	ofFileDialogResult res;
+	res = ofSystemSaveDialog("GuiSetting.xml", "Save");
+	if(res.bSuccess) gui.saveToFile(res.filePath);
+}
+
+/******************************
+description
+	lock()/unlock()
+	処理が止まってしまうので、Dialogでなく、File名固定にしようかと思ったが、
+	実験の結果、Processの前後で問題なく動作したので、Dialogにしておく.
+******************************/
+void FFT::load_GuiSetting()
+{
+	ofFileDialogResult res;
+	res = ofSystemLoadDialog("Load");
+	if(res.bSuccess) gui.loadFromFile(res.filePath);
+}
 
 /******************************
 ******************************/
@@ -342,14 +396,20 @@ void FFT::draw()
 		/********************
 		********************/
 		/* */
-		if(b_LineGraph){
-			glPointSize(1.0);
-			glLineWidth(2);
-			Vbo.draw(GL_LINES, 0, VboVerts.size());
-		}else{
+		if(b_DispGain){
 			glPointSize(1.0);
 			glLineWidth(1);
-			Vbo.draw(GL_QUADS, 0, VboVerts.size());
+			Vbo.draw(GL_QUADS, 0, VboVerts.size()/2);
+		}else{
+			if(b_LineGraph){
+				glPointSize(1.0);
+				glLineWidth(2);
+				Vbo.draw(GL_LINES, 0, VboVerts.size());
+			}else{
+				glPointSize(1.0);
+				glLineWidth(1);
+				Vbo.draw(GL_QUADS, 0, VboVerts.size());
+			}
 		}
 		
 		/********************

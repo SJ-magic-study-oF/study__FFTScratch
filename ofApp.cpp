@@ -147,6 +147,19 @@ void ofApp::keyPressed(int key){
 			fft_Filter.unlock();
 			
 			break;
+			
+		case 'l':
+			fft_Filter.lock();
+			fft_Filter.load_GuiSetting();
+			fft_Filter.unlock();
+			break;
+			
+		case 's':
+			fft_Filter.lock();
+			fft_Filter.save_GuiSetting();
+			fft_Filter.unlock();
+			break;
+			
 	}
 }
 
